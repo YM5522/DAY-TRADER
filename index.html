@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#050a0e">
+<title>TradeSimulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+JP:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000000;
+    --card: #0f2030;
+    --border: #1a3a52;
+    --accent: #00d4ff;
+    --green: #00e87a;
+    --red: #ff3355;
+    --yellow: #ffd700;
+    --text: #d0e8f5;
+    --dim: #4a6a80;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { height:100%; background:#000000; }
+  body {
+    height:100%; display:flex; flex-direction:column;
+    overflow:hidden; overscroll-behavior:none;
+    background:var(--bg); color:var(--text);
+    font-family:'Noto Sans JP',sans-serif; font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .up { color:var(--green); } .down { color:var(--red); }
+
+  /* HEADER */
+  .app-header { flex-shrink:0; padding-top:var(--safe-top); background:rgba(5,10,14,0.98); border-bottom:1px solid var(--border); }
+  .header-inner { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; height:52px; }
+  .logo { font-family:'Share Tech Mono',monospace; font-size:16px; color:var(--accent); letter-spacing:2px; }
+  .header-balance { font-family:'Share Tech Mono',monospace; font-size:17px; font-weight:bold; }
+  .header-change { font-family:'Share Tech Mono',monospace; font-size:11px; margin-top:1px; text-align:right; }
+
+  /* TAB BAR */
+  .tab-bar { flex-shrink:0; display:flex; background:#080f18; border-bottom:1px solid var(--border); }
+  .tab-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; height:50px; gap:3px; color:var(--dim); font-size:10px; user-select:none; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color 0.15s; }
+  .tab-item.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-item:active { background:rgba(0,212,255,0.07); }
+  .tab-icon { font-size:17px; line-height:1; }
+
+  /* SCROLL PAGES */
+  .scroll-container { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; display:none; padding-bottom:var(--safe-bottom); background:#000000; }
+  .scroll-container.active { display:block; }
+  .page { padding:12px 14px 20px; background:#000000; }
+
+  /* CHART CONTAINER */
+  .chart-container { flex:1; display:none; flex-direction:column; overflow:hidden; padding:8px 10px; padding-bottom:calc(8px + var(--safe-bottom)); gap:6px; min-height:0; background:#000000; }
+  .chart-container.active { display:flex; }
+
+  /* STAT GRID */
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  .stat-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  .stat-card-label { font-size:10px; color:var(--dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+  .stat-card-value { font-family:'Share Tech Mono',monospace; font-size:16px; font-weight:bold; }
+
+  /* CARD */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; margin-bottom:12px; }
+  .card-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); margin-bottom:10px; }
+
+  /* STOCK LIST */
+  .stock-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(26,58,82,0.5); cursor:pointer; }
+  .stock-row:last-child { border-bottom:none; }
+  .stock-row:active { opacity:0.7; }
+  .stock-left { display:flex; align-items:center; gap:11px; }
+  .stock-badge { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-family:'Share Tech Mono',monospace; font-size:11px; font-weight:bold; flex-shrink:0; }
+  .up-badge { background:rgba(0,232,122,0.1); color:var(--green); border:1px solid rgba(0,232,122,0.2); }
+  .down-badge { background:rgba(255,51,85,0.1); color:var(--red); border:1px solid rgba(255,51,85,0.2); }
+  .stock-info .sym { font-family:'Share Tech Mono',monospace; font-size:15px; font-weight:bold; }
+  .stock-info .nm { font-size:11px; color:var(--dim); margin-top:2px; }
+  .stock-right { text-align:right; }
+  .stock-right .pr { font-family:'Share Tech Mono',monospace; font-size:15px; }
+  .stock-right .pch { font-size:11px; margin-top:2px; }
+
+  /* TICKER */
+  .ticker-wrap { overflow:hidden; white-space:nowrap; padding:7px 0; border-bottom:1px solid var(--border); margin-bottom:12px; }
+  .ticker-inner { display:inline-flex; gap:24px; animation:tickerScroll 20s linear infinite; }
+  @keyframes tickerScroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  .ticker-item { font-family:'Share Tech Mono',monospace; font-size:11px; white-space:nowrap; }
+
+  /* CHIPS */
+  .chip-row { display:flex; gap:5px; flex-wrap:wrap; }
+  .chip { flex-shrink:0; padding:5px 11px; border:1px solid var(--border); border-radius:20px; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--dim); cursor:pointer; white-space:nowrap; }
+  .chip.active { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,0.1); }
+
+  /* TF BUTTONS */
+  .tf-btn { padding:4px 9px; border:1px solid var(--border); background:transparent; color:var(--dim); font-family:'Share Tech Mono',monospace; font-size:11px; cursor:pointer; border-radius:7px; }
+  .tf-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,0.1); }
+
+  /* CHANGE BADGE */
+  .change-badge { font-family:'Share Tech Mono',monospace; font-size:11px; padding:2px 7px; border-radius:20px; }
+  .change-up { background:rgba(0,232,122,0.15); color:var(--green); }
+  .change-down { background:rgba(255,51,85,0.15); color:var(--red); }
+
+  /* TRADE PAGE */
+  .current-price-row { display:flex; justify-content:space-between; align-items:center; padding:11px 14px; background:rgba(255,255,255,0.05); border-radius:12px; margin-bottom:12px; }
+  .cp-label { font-size:12px; color:var(--dim); }
+  .cp-value { font-family:'Share Tech Mono',monospace; font-size:20px; font-weight:bold; }
+  .position-card { background:#111111; border:1px solid var(--border); border-radius:16px; padding:14px; margin-bottom:12px; }
+  .pos-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pos-item .label { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:3px; }
+  .pos-item .value { font-family:'Share Tech Mono',monospace; font-size:15px; }
+  .qty-input { background:rgba(0,0,0,0.4); border:1px solid var(--border); color:var(--text); font-family:'Share Tech Mono',monospace; font-size:22px; padding:12px 14px; border-radius:12px; width:100%; outline:none; -webkit-appearance:none; text-align:center; margin-bottom:8px; }
+  .qty-input:focus { border-color:var(--accent); }
+  .qty-presets { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px; }
+  .qty-preset { padding:9px 0; background:rgba(0,0,0,0.3); border:1px solid var(--border); color:var(--dim); font-family:'Share Tech Mono',monospace; font-size:12px; cursor:pointer; border-radius:10px; text-align:center; }
+  .qty-preset:active { background:rgba(0,212,255,0.15); border-color:var(--accent); color:var(--accent); }
+  .order-details { background:rgba(0,0,0,0.2); border-radius:12px; padding:11px; margin-bottom:14px; font-size:12px; }
+  .ord-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(26,58,82,0.3); }
+  .ord-row:last-child { border-bottom:none; }
+  .ord-label { color:var(--dim); }
+  .ord-value { font-family:'Share Tech Mono',monospace; }
+  .trade-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btn-buy,.btn-sell { padding:16px; border:none; font-family:'Share Tech Mono',monospace; font-size:15px; letter-spacing:2px; cursor:pointer; border-radius:12px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .btn-buy { background:rgba(0,232,122,0.15); color:var(--green); border:1.5px solid var(--green); }
+  .btn-buy:active { background:rgba(0,232,122,0.3); transform:scale(0.97); }
+  .btn-sell { background:rgba(255,51,85,0.15); color:var(--red); border:1.5px solid var(--red); }
+  .btn-sell:active { background:rgba(255,51,85,0.3); transform:scale(0.97); }
+  .btn-sub { font-size:10px; opacity:0.6; letter-spacing:1px; font-weight:normal; }
+
+  /* CONTROLS */
+  .ctrl-btn { padding:6px 12px; border-radius:9px; font-family:'Share Tech Mono',monospace; font-size:11px; cursor:pointer; border:1px solid; }
+  .ctrl-pause { background:rgba(0,212,255,0.1); border-color:var(--accent); color:var(--accent); }
+  .ctrl-reset { background:rgba(255,215,0,0.1); border-color:var(--yellow); color:var(--yellow); }
+  .speed-wrap { flex:1; display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--border); border-radius:9px; padding:6px 11px; }
+  .speed-label { font-size:10px; color:var(--dim); white-space:nowrap; }
+  .speed-slider { -webkit-appearance:none; flex:1; height:3px; background:var(--border); outline:none; border-radius:2px; }
+  .speed-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accent); cursor:pointer; }
+
+  /* LOG */
+  .log-entry { padding:11px; border-radius:11px; margin-bottom:7px; display:flex; justify-content:space-between; align-items:center; animation:slideIn 0.2s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+  .log-buy { background:rgba(0,232,122,0.08); border-left:3px solid var(--green); }
+  .log-sell { background:rgba(255,51,85,0.08); border-left:3px solid var(--red); }
+  .log-type { font-family:'Share Tech Mono',monospace; font-size:13px; font-weight:bold; }
+  .log-detail { font-size:11px; color:var(--dim); margin-top:2px; }
+  .log-price { font-family:'Share Tech Mono',monospace; font-size:13px; text-align:right; }
+  .log-pnl { font-family:'Share Tech Mono',monospace; font-size:11px; padding:1px 6px; border-radius:10px; display:inline-block; margin-top:3px; }
+  .pnl-pos { background:rgba(0,232,122,0.15); color:var(--green); }
+  .pnl-neg { background:rgba(255,51,85,0.15); color:var(--red); }
+  .empty-state { text-align:center; padding:40px 20px; color:var(--dim); }
+  .empty-state .icon { font-size:36px; margin-bottom:10px; }
+
+  /* NOTIFICATION */
+  .notification { position:fixed; top:120px; left:14px; right:14px; padding:13px 18px; border-radius:13px; font-family:'Share Tech Mono',monospace; font-size:13px; z-index:999; text-align:center; pointer-events:none; animation:notifIn 0.3s cubic-bezier(0.34,1.56,0.64,1), notifOut 0.3s ease 2.7s forwards; }
+  .notif-buy { background:rgba(0,232,122,0.2); border:1px solid var(--green); color:var(--green); }
+  .notif-sell { background:rgba(255,51,85,0.2); border:1px solid var(--red); color:var(--red); }
+  .notif-error { background:rgba(255,215,0,0.2); border:1px solid var(--yellow); color:var(--yellow); }
+  @keyframes notifIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+  @keyframes notifOut { to{opacity:0} }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="app-header">
+  <div class="header-inner">
+    <div class="logo">DAY TRADER</div>
+    <div style="text-align:right">
+      <div class="header-balance" id="header-balance">¥5,000,000</div>
+      <div class="header-change" id="header-change" style="color:var(--dim)">--</div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <div class="tab-item active" id="tab-home"><div class="tab-icon">📊</div><div>ホーム</div></div>
+  <div class="tab-item" id="tab-chart"><div class="tab-icon">📈</div><div>チャート</div></div>
+  <div class="tab-item" id="tab-trade"><div class="tab-icon">💹</div><div>注文</div></div>
+  <div class="tab-item" id="tab-log"><div class="tab-icon">📋</div><div>履歴</div></div>
+</div>
+
+<!-- HOME PAGE -->
+<div class="scroll-container active" id="scroll-home">
+  <div class="page">
+    <div class="ticker-wrap"><div class="ticker-inner" id="ticker-inner"></div></div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-card-label">残高</div><div class="stat-card-value" id="st-balance">¥5,000,000</div></div>
+      <div class="stat-card"><div class="stat-card-label">評価損益</div><div class="stat-card-value" id="st-unrealized">¥0</div></div>
+      <div class="stat-card"><div class="stat-card-label">確定損益</div><div class="stat-card-value" id="st-realized">¥0</div></div>
+      <div class="stat-card"><div class="stat-card-label">勝率</div><div class="stat-card-value" id="st-winrate">--</div></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="ctrl-btn ctrl-reset" onclick="resetGame()">RESET</button>
+    </div>
+    <div class="card">
+      <div class="card-title">銘柄一覧</div>
+      <div id="home-stock-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TRADE PAGE -->
+<div class="scroll-container" id="scroll-trade">
+  <div class="page">
+    <div class="chip-row" id="trade-chips" style="margin-bottom:12px;"></div>
+    <div class="current-price-row">
+      <span class="cp-label">現在値</span>
+      <span class="cp-value" id="trade-price">--</span>
+    </div>
+    <div class="position-card">
+      <div class="card-title">保有ポジション</div>
+      <div class="pos-grid">
+        <div class="pos-item"><div class="label">保有株数</div><div class="value" id="pos-qty">0 株</div></div>
+        <div class="pos-item"><div class="label">平均単価</div><div class="value" id="pos-avg">--</div></div>
+        <div class="pos-item"><div class="label">評価損益</div><div class="value" id="pos-pnl">--</div></div>
+        <div class="pos-item"><div class="label">損益率</div><div class="value" id="pos-pct">--</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">注文数量</div>
+      <input type="number" class="qty-input" id="qty-input" value="100" min="1" oninput="updateOrderSummary()" inputmode="numeric">
+      <div class="qty-presets">
+        <div class="qty-preset" onclick="setQty(100)">100</div>
+        <div class="qty-preset" onclick="setQty(500)">500</div>
+        <div class="qty-preset" onclick="setQty(1000)">1000</div>
+        <div class="qty-preset" onclick="setQtyMax()">MAX</div>
+      </div>
+      <div class="order-details">
+        <div class="ord-row"><span class="ord-label">現在値</span><span class="ord-value" id="ord-price">--</span></div>
+        <div class="ord-row"><span class="ord-label">数量</span><span class="ord-value" id="ord-qty">--</span></div>
+        <div class="ord-row"><span class="ord-label">約定金額</span><span class="ord-value" id="ord-total">--</span></div>
+        <div class="ord-row"><span class="ord-label">手数料</span><span class="ord-value" id="ord-fee">なし</span></div>
+      </div>
+      <div class="trade-btns">
+        <button class="btn-buy" onclick="executeTrade('buy')">BUY<span class="btn-sub">買い</span></button>
+        <button class="btn-sell" onclick="executeTrade('sell')">SELL<span class="btn-sub">売り</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOG PAGE -->
+<div class="scroll-container" id="scroll-log">
+  <div class="page">
+    <div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:var(--dim)">約定履歴</div>
+    </div>
+    <div id="trade-log">
+      <div class="empty-state"><div class="icon">📋</div><div>まだ取引履歴がありません</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHART PAGE: flex column, fills remaining height -->
+<div class="chart-container" id="chart-container">
+
+  <!-- 行1: 銘柄・株価 ＋ 分足切替（縦）＋ 数量・BUY/SELL -->
+  <div style="display:flex;align-items:stretch;gap:8px;flex-shrink:0;">
+
+    <!-- 銘柄・株価 -->
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--accent);" id="chart-symbol">7203</span>
+        <span style="font-size:10px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="chart-name">トヨタ自動車</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap;">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:20px;font-weight:bold;" id="chart-price">--</span>
+        <span class="change-badge" id="chart-change-badge">--</span>
+      </div>
+    </div>
+
+    <!-- 分足切替 -->
+    <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;justify-content:center;">
+      <button class="tf-btn active" onclick="setTF(60,this)">1分</button>
+      <button class="tf-btn" onclick="setTF(300,this)">5分</button>
+      <button class="tf-btn" onclick="setTF(900,this)">15分</button>
+    </div>
+
+    <!-- 数量 + BUY/SELL -->
+    <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;justify-content:center;">
+      <input type="number" id="chart-qty-input" value="100" min="1" inputmode="numeric"
+        style="width:76px;background:rgba(0,0,0,0.4);border:1px solid var(--border);color:var(--text);
+               font-family:'Share Tech Mono',monospace;font-size:14px;padding:5px 6px;
+               border-radius:8px;outline:none;text-align:center;-webkit-appearance:none;">
+      <div style="display:flex;gap:4px;">
+        <button onclick="chartExecuteTrade('buy')"
+          style="flex:1;padding:8px 4px;background:rgba(0,232,122,0.15);color:var(--green);
+                 border:1.5px solid var(--green);border-radius:8px;font-family:'Share Tech Mono',monospace;
+                 font-size:13px;font-weight:bold;cursor:pointer;letter-spacing:1px;">BUY</button>
+        <button onclick="chartExecuteTrade('sell')"
+          style="flex:1;padding:8px 4px;background:rgba(255,51,85,0.15);color:var(--red);
+                 border:1.5px solid var(--red);border-radius:8px;font-family:'Share Tech Mono',monospace;
+                 font-size:13px;font-weight:bold;cursor:pointer;letter-spacing:1px;">SELL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 行2: 保有・残高・プリセット -->
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;background:rgba(0,0,0,0.25);border-radius:9px;padding:5px 10px;">
+    <div style="font-size:11px;color:var(--dim);">保有 <span style="font-family:'Share Tech Mono',monospace;color:var(--text);" id="ct-pos-qty">0株</span> <span id="ct-pos-pnl" style="font-family:'Share Tech Mono',monospace;font-size:11px;"></span></div>
+    <div style="width:1px;background:var(--border);height:13px;flex-shrink:0;"></div>
+    <div style="font-size:11px;color:var(--dim);white-space:nowrap;">残高 <span style="font-family:'Share Tech Mono',monospace;color:var(--text);" id="ct-balance">--</span></div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;gap:3px;flex-shrink:0;">
+      <div onclick="chartSetQty(100)" style="padding:3px 6px;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:10px;border-radius:6px;cursor:pointer;">100</div>
+      <div onclick="chartSetQty(500)" style="padding:3px 6px;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:10px;border-radius:6px;cursor:pointer;">500</div>
+      <div onclick="chartSetQty(1000)" style="padding:3px 6px;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:10px;border-radius:6px;cursor:pointer;">1000</div>
+      <div onclick="chartSetQtyMax()" style="padding:3px 6px;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:10px;border-radius:6px;cursor:pointer;">MAX</div>
+    </div>
+  </div>
+
+  <!-- 行3: 銘柄切替チップ -->
+  <div class="chip-row" id="stock-chips" style="flex-shrink:0;"></div>
+
+  <!-- 行4: チャート（残り全部） -->
+  <div style="flex:1;min-height:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;overflow:hidden;">
+    <canvas id="chart" style="display:block;width:100%;height:100%;"></canvas>
+  </div>
+
+  <!-- 行5: 一時停止・速度 -->
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+    <button class="ctrl-btn ctrl-pause" id="pause-btn" onclick="togglePause()">⏸ 停止</button>
+    <div class="speed-wrap">
+      <span class="speed-label">速度</span>
+      <input type="range" class="speed-slider" min="1" max="10" value="1" oninput="updateSpeed(this.value)">
+      <span class="speed-label" id="speed-label">1x</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const STOCKS = [
+  { symbol:'7203', name:'トヨタ自動車',    basePrice:3825,  vol:0.001 },
+  { symbol:'6758', name:'ソニーグループ',   basePrice:3552,  vol:0.0012 },
+  { symbol:'9984', name:'ソフトバンクG',    basePrice:4326,  vol:0.0015 },
+  { symbol:'4063', name:'信越化学',         basePrice:4932,  vol:0.001 },
+  { symbol:'8035', name:'東京エレクトロン', basePrice:45310, vol:0.0014 },
+  { symbol:'6857', name:'アドバンテスト',   basePrice:28125, vol:0.0016 },
+  { symbol:'5108', name:'ブリヂストン',     basePrice:3796,  vol:0.001 },
+];
+
+const state = {
+  balance:5_000_000, positions:{}, realizedPnL:0, wins:0, losses:0,
+  prices:{}, history:{}, trends:{},
+  currentSymbol:'7203', tf:60, paused:false, speed:1,
+};
+
+STOCKS.forEach(s => {
+  state.prices[s.symbol] = s.basePrice;
+  state.history[s.symbol] = genHistory(s.basePrice, s.vol);
+  state.positions[s.symbol] = {qty:0, avgPrice:0};
+  state.trends[s.symbol] = 0;
+});
+
+function genHistory(base, vol) {
+  const bars=[], now=Date.now(); let p=base;
+  for (let i=200; i>=0; i--) {
+    const ch=(Math.random()-0.5)*vol*p, o=p, c=p+ch;
+    bars.push({o, h:Math.max(o,c)+Math.random()*vol*p*0.5, l:Math.min(o,c)-Math.random()*vol*p*0.5, c, t:now-i*60000});
+    p=c;
+  }
+  return bars;
+}
+
+function updatePrices() {
+  STOCKS.forEach(s => {
+    if (Math.random()<0.02) state.trends[s.symbol]=(Math.random()-0.5)*0.0002;
+    const p=state.prices[s.symbol];
+    const np=p*(1+state.trends[s.symbol]+(Math.random()-0.5)*s.vol);
+    state.prices[s.symbol]=Math.max(np,1);
+    const hist=state.history[s.symbol], last=hist[hist.length-1], now=Date.now();
+    if (now-last.t > state.tf*1000) {
+      hist.push({o:np,h:np,l:np,c:np,t:now});
+      if (hist.length>300) hist.shift();
+    } else { last.c=np; last.h=Math.max(last.h,np); last.l=Math.min(last.l,np); }
+  });
+}
+
+// CHART
+const canvas=document.getElementById('chart');
+const ctx=canvas.getContext('2d');
+
+function drawChart() {
+  const hist=state.history[state.currentSymbol];
+  const W=canvas.clientWidth, H=canvas.clientHeight;
+  if (!W||!H) return;
+  const dpr=devicePixelRatio||1;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.fillStyle='#0f2030'; ctx.fillRect(0,0,W,H);
+
+  const visN=Math.min(60,hist.length), bars=hist.slice(-visN);
+  const prices=bars.flatMap(b=>[b.h,b.l]);
+  const minP=Math.min(...prices)*0.999, maxP=Math.max(...prices)*1.001, range=maxP-minP||1;
+  const pL=6,pR=54,pT=8,pB=18, cW=W-pL-pR, cH=H-pT-pB;
+  const toY=p=>pT+cH-(p-minP)/range*cH, bW=cW/visN;
+
+  for (let i=0;i<=4;i++) {
+    const y=pT+cH/4*i;
+    ctx.strokeStyle='rgba(26,58,82,0.4)'; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(W-pR,y); ctx.stroke();
+    ctx.fillStyle='#4a6a80'; ctx.font='10px Share Tech Mono'; ctx.textAlign='left';
+    ctx.fillText(Math.round(maxP-range/4*i).toLocaleString(), W-pR+4, y+4);
+  }
+
+  // MA5（短期・シアン）
+  if (bars.length>=5) {
+    ctx.strokeStyle='rgba(0,212,255,0.7)'; ctx.lineWidth=1.2; ctx.beginPath();
+    for (let i=4;i<bars.length;i++) {
+      const ma=bars.slice(i-4,i+1).reduce((s,b)=>s+b.c,0)/5;
+      const x=pL+(i+0.5)*bW;
+      if (i===4) ctx.moveTo(x,toY(ma)); else ctx.lineTo(x,toY(ma));
+    }
+    ctx.stroke();
+  }
+
+  // MA20（中期・ゴールド）
+  if (bars.length>=20) {
+    ctx.strokeStyle='rgba(255,215,0,0.6)'; ctx.lineWidth=1.5; ctx.beginPath();
+    for (let i=19;i<bars.length;i++) {
+      const ma=bars.slice(i-19,i+1).reduce((s,b)=>s+b.c,0)/20;
+      const x=pL+(i+0.5)*bW;
+      if (i===19) ctx.moveTo(x,toY(ma)); else ctx.lineTo(x,toY(ma));
+    }
+    ctx.stroke();
+  }
+
+  bars.forEach((bar,i) => {
+    const x=pL+i*bW, bW2=Math.max(bW*0.75,2), bX=x+(bW-bW2)/2;
+    const isUp=bar.c>=bar.o, color=isUp?'#00e87a':'#ff3355';
+    ctx.strokeStyle=color; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x+bW/2,toY(bar.h)); ctx.lineTo(x+bW/2,toY(bar.l)); ctx.stroke();
+    const bt=toY(Math.max(bar.o,bar.c)), bh=Math.max(toY(Math.min(bar.o,bar.c))-bt,1);
+    ctx.fillStyle=isUp?'rgba(0,232,122,0.85)':'rgba(255,51,85,0.85)';
+    ctx.fillRect(bX,bt,bW2,bh);
+  });
+
+  const pos=state.positions[state.currentSymbol];
+  if (pos&&pos.qty>0) {
+    const ay=toY(pos.avgPrice);
+    ctx.strokeStyle='rgba(255,215,0,0.9)'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(pL,ay); ctx.lineTo(W-pR,ay); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle='rgba(255,215,0,1)'; ctx.font='9px Share Tech Mono';
+    ctx.fillText('avg', W-pR+4, ay-2);
+  }
+}
+
+// UI
+function updateUI() {
+  const price=state.prices[state.currentSymbol];
+  const stock=STOCKS.find(s=>s.symbol===state.currentSymbol);
+  let unreal=0;
+  STOCKS.forEach(s=>{ const pos=state.positions[s.symbol]; if(pos.qty>0) unreal+=(state.prices[s.symbol]-pos.avgPrice)*pos.qty; });
+
+  document.getElementById('header-balance').textContent='¥'+Math.round(state.balance).toLocaleString();
+  const totalPnL=unreal+state.realizedPnL, hc=document.getElementById('header-change');
+  hc.textContent=(totalPnL>=0?'+':'')+'¥'+Math.round(totalPnL).toLocaleString();
+  hc.className='header-change '+(totalPnL>0?'up':totalPnL<0?'down':'');
+
+  document.getElementById('st-balance').textContent='¥'+Math.round(state.balance).toLocaleString();
+  const ure=document.getElementById('st-unrealized');
+  ure.textContent=(unreal>=0?'+':'')+'¥'+Math.round(unreal).toLocaleString();
+  ure.className='stat-card-value '+(unreal>0?'up':unreal<0?'down':'');
+  const rle=document.getElementById('st-realized');
+  rle.textContent=(state.realizedPnL>=0?'+':'')+'¥'+Math.round(state.realizedPnL).toLocaleString();
+  rle.className='stat-card-value '+(state.realizedPnL>0?'up':state.realizedPnL<0?'down':'');
+  const tot=state.wins+state.losses;
+  document.getElementById('st-winrate').textContent=tot>0?Math.round(state.wins/tot*100)+'%':'--';
+
+  // home list
+  const listEl=document.getElementById('home-stock-list'); listEl.innerHTML='';
+  STOCKS.forEach(s=>{
+    const p=state.prices[s.symbol], hist=state.history[s.symbol];
+    const open=hist.length>50?hist[hist.length-50].o:hist[0].o;
+    const ch=p-open, pct=(ch/open*100).toFixed(2), cls=ch>=0?'up':'down', sign=ch>=0?'+':'';
+    const pos=state.positions[s.symbol];
+    const row=document.createElement('div');
+    row.className='stock-row'+(s.symbol===state.currentSymbol?' selected':'');
+    row.innerHTML=`
+      <div class="stock-left">
+        <div class="stock-badge ${ch>=0?'up-badge':'down-badge'}">${s.symbol.slice(-2)}</div>
+        <div class="stock-info">
+          <div class="sym ${cls}">${s.symbol}</div>
+          <div class="nm">${s.name}${pos.qty>0?` <span style="color:var(--yellow);font-size:10px">●${pos.qty}株</span>`:''}</div>
+        </div>
+      </div>
+      <div class="stock-right">
+        <div class="pr ${cls}">${Math.round(p).toLocaleString()}</div>
+        <div class="pch ${cls}">${sign}${pct}%</div>
+      </div>`;
+    row.addEventListener('touchstart',function(e){e.preventDefault();selectStock(s.symbol);switchTab('chart',document.getElementById('tab-chart'));},{passive:false});
+    row.onclick=()=>{selectStock(s.symbol);switchTab('chart',document.getElementById('tab-chart'));};
+    listEl.appendChild(row);
+  });
+
+  // chart header
+  const hist=state.history[state.currentSymbol];
+  const open=hist.length>50?hist[hist.length-50].o:hist[0].o;
+  const ch=price-open, pct=(ch/open*100).toFixed(2), sign=ch>=0?'+':'';
+  document.getElementById('chart-symbol').textContent=state.currentSymbol;
+  document.getElementById('chart-name').textContent=stock.name;
+  const cpEl=document.getElementById('chart-price');
+  cpEl.textContent=Math.round(price).toLocaleString();
+  cpEl.className=ch>=0?'up':'down';
+  const cbEl=document.getElementById('chart-change-badge');
+  cbEl.textContent=`${sign}${Math.round(ch).toLocaleString()} (${sign}${pct}%)`;
+  cbEl.className='change-badge '+(ch>=0?'change-up':'change-down');
+
+  // chips
+  ['stock-chips','trade-chips'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.innerHTML='';
+    STOCKS.forEach(s=>{
+      const chip=document.createElement('div');
+      chip.className='chip'+(s.symbol===state.currentSymbol?' active':'');
+      chip.textContent=id==='stock-chips'||id==='trade-chips'?s.name:s.symbol;
+      chip.addEventListener('touchstart',function(e){e.preventDefault();selectStock(s.symbol);},{passive:false});
+      chip.onclick=()=>selectStock(s.symbol);
+      el.appendChild(chip);
+    });
+  });
+
+  // trade page
+  const tp=document.getElementById('trade-price');
+  tp.textContent=Math.round(price).toLocaleString()+' 円';
+  tp.className='cp-value '+(ch>=0?'up':'down');
+  const pos=state.positions[state.currentSymbol];
+  if (pos.qty>0) {
+    const pnl=(price-pos.avgPrice)*pos.qty, pct2=((price-pos.avgPrice)/pos.avgPrice*100).toFixed(2);
+    const pc=pnl>=0?'up':'down', sg=pnl>=0?'+':'';
+    document.getElementById('pos-qty').textContent=pos.qty.toLocaleString()+' 株';
+    document.getElementById('pos-avg').textContent=Math.round(pos.avgPrice).toLocaleString()+' 円';
+    document.getElementById('pos-pnl').innerHTML=`<span class="${pc}">${sg}¥${Math.round(pnl).toLocaleString()}</span>`;
+    document.getElementById('pos-pct').innerHTML=`<span class="${pc}">${sg}${pct2}%</span>`;
+  } else {
+    document.getElementById('pos-qty').textContent='0 株';
+    document.getElementById('pos-avg').textContent='--';
+    document.getElementById('pos-pnl').textContent='--';
+    document.getElementById('pos-pct').textContent='--';
+  }
+
+  // chart panel
+  document.getElementById('ct-balance').textContent='¥'+Math.round(state.balance).toLocaleString();
+  if (pos.qty>0) {
+    const pnl=(price-pos.avgPrice)*pos.qty;
+    document.getElementById('ct-pos-qty').textContent=pos.qty.toLocaleString()+'株';
+    document.getElementById('ct-pos-pnl').innerHTML=`<span class="${pnl>=0?'up':'down'}">${pnl>=0?'+':''}¥${Math.round(pnl).toLocaleString()}</span>`;
+  } else {
+    document.getElementById('ct-pos-qty').textContent='0株';
+    document.getElementById('ct-pos-pnl').textContent='';
+  }
+
+  updateOrderSummary();
+  updateTicker();
+}
+
+function updateOrderSummary() {
+  const price=state.prices[state.currentSymbol];
+  const qty=parseInt(document.getElementById('qty-input').value)||0;
+  const total=price*qty;
+  document.getElementById('ord-price').textContent=Math.round(price).toLocaleString()+' 円';
+  document.getElementById('ord-qty').textContent=qty.toLocaleString()+' 株';
+  document.getElementById('ord-total').textContent='¥'+Math.round(total).toLocaleString();
+  document.getElementById('ord-fee').textContent='なし';
+}
+
+function updateTicker() {
+  let html='';
+  STOCKS.forEach(s=>{
+    const p=state.prices[s.symbol], hist=state.history[s.symbol];
+    const open=hist.length>50?hist[hist.length-50].o:hist[0].o;
+    const ch=p-open, pct=(ch/open*100).toFixed(2), cls=ch>=0?'up':'down', sign=ch>=0?'+':'';
+    html+=`<span class="ticker-item"><span class="${cls}">${s.symbol}</span> ${Math.round(p).toLocaleString()} <span class="${cls}">${sign}${pct}%</span></span>`;
+  });
+  document.getElementById('ticker-inner').innerHTML=html+html;
+}
+
+function selectStock(sym) { state.currentSymbol=sym; updateUI(); drawChart(); }
+
+function setQty(q){document.getElementById('qty-input').value=q;updateOrderSummary();}
+function setQtyMax(){const p=state.prices[state.currentSymbol];document.getElementById('qty-input').value=Math.max(Math.floor(state.balance/(p*1.001)),0);updateOrderSummary();}
+function chartSetQty(q){document.getElementById('chart-qty-input').value=q;}
+function chartSetQtyMax(){const p=state.prices[state.currentSymbol];document.getElementById('chart-qty-input').value=Math.max(Math.floor(state.balance/(p*1.001)),0);}
+
+function executeTrade(type){_trade(type,parseInt(document.getElementById('qty-input').value));}
+function chartExecuteTrade(type){_trade(type,parseInt(document.getElementById('chart-qty-input').value));}
+
+function _trade(type,qty){
+  if(!qty||qty<=0){showNotif('数量を入力してください','error');return;}
+  const price=state.prices[state.currentSymbol];
+  const fee=0;
+  const pos=state.positions[state.currentSymbol];
+  if(type==='buy'){
+    const cost=price*qty+fee;
+    if(cost>state.balance){showNotif('残高不足です','error');return;}
+    state.balance-=cost;
+    const pq=pos.qty,pa=pos.avgPrice; pos.qty+=qty;
+    pos.avgPrice=(pq*pa+qty*price)/pos.qty;
+    addLog('buy',qty,price,fee);
+    showNotif(`買い約定 ${qty}株 @${Math.round(price).toLocaleString()}円`,'buy');
+  } else {
+    if(!pos||pos.qty<=0){showNotif('保有株がありません','error');return;}
+    const sq=Math.min(qty,pos.qty), pnl=(price-pos.avgPrice)*sq-fee;
+    state.balance+=price*sq-fee; state.realizedPnL+=pnl;
+    if(pnl>0)state.wins++;else if(pnl<0)state.losses++;
+    pos.qty-=sq; if(pos.qty===0)pos.avgPrice=0;
+    addLog('sell',sq,price,fee,pnl);
+    showNotif(`売り約定 ${sq}株 @${Math.round(price).toLocaleString()}円 (${pnl>=0?'+':''}¥${Math.round(pnl).toLocaleString()})`,'sell');
+  }
+  updateUI();
+}
+
+function addLog(type,qty,price,fee,pnl){
+  const logEl=document.getElementById('trade-log');
+  const empty=logEl.querySelector('.empty-state'); if(empty) empty.remove();
+  const time=new Date().toTimeString().slice(0,8);
+  let pnlHtml=pnl!==undefined?`<div class="log-pnl ${pnl>=0?'pnl-pos':'pnl-neg'}">${pnl>=0?'+':''}¥${Math.round(pnl).toLocaleString()}</div>`:'';
+  const entry=document.createElement('div');
+  entry.className=`log-entry log-${type}`;
+  entry.innerHTML=`<div><div class="log-type ${type==='buy'?'up':'down'}">${type==='buy'?'▲ BUY':'▼ SELL'} · ${state.currentSymbol}</div><div class="log-detail">${time} · ${qty.toLocaleString()}株</div></div><div><div class="log-price">${Math.round(price).toLocaleString()}円</div>${pnlHtml}</div>`;
+  logEl.insertBefore(entry,logEl.firstChild);
+  if(logEl.children.length>50) logEl.removeChild(logEl.lastChild);
+}
+
+function showNotif(msg,type){
+  const el=document.createElement('div');
+  el.className=`notification notif-${type}`; el.textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),3000);
+}
+
+function setTF(sec,btn){
+  state.tf=sec;
+  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function togglePause(){
+  state.paused=!state.paused;
+  document.getElementById('pause-btn').textContent=state.paused?'▶ 再開':'⏸ 停止';
+}
+
+function updateSpeed(v){state.speed=parseInt(v);document.getElementById('speed-label').textContent=v+'x';}
+
+function resetGame(){
+  if(!confirm('リセットしますか？')) return;
+  state.balance=5_000_000; state.realizedPnL=0; state.wins=0; state.losses=0;
+  STOCKS.forEach(s=>{
+    state.positions[s.symbol]={qty:0,avgPrice:0};
+    state.prices[s.symbol]=s.basePrice;
+    state.history[s.symbol]=genHistory(s.basePrice,s.vol);
+    state.trends[s.symbol]=0;
+  });
+  document.getElementById('trade-log').innerHTML='<div class="empty-state"><div class="icon">📋</div><div>まだ取引履歴がありません</div></div>';
+  updateUI(); drawChart();
+}
+
+// TAB SWITCHING
+function switchTab(name, tabEl) {
+  document.querySelectorAll('.scroll-container').forEach(el=>el.classList.remove('active'));
+  document.getElementById('chart-container').classList.remove('active');
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+  if (name==='chart') {
+    document.getElementById('chart-container').classList.add('active');
+    setTimeout(drawChart, 50);
+  } else {
+    document.getElementById('scroll-'+name).classList.add('active');
+    document.getElementById('scroll-'+name).scrollTop=0;
+  }
+  tabEl.classList.add('active');
+}
+
+[{id:'tab-home',name:'home'},{id:'tab-chart',name:'chart'},{id:'tab-trade',name:'trade'},{id:'tab-log',name:'log'}]
+.forEach(({id,name})=>{
+  const el=document.getElementById(id);
+  el.addEventListener('touchstart',function(e){e.preventDefault();switchTab(name,el);},{passive:false});
+  el.addEventListener('click',()=>switchTab(name,el));
+});
+
+// GAME LOOP
+let lastTick=0;
+function gameLoop(ts){
+  if(!state.paused){
+    const interval=Math.max(50,500/state.speed);
+    if(ts-lastTick>interval){
+      lastTick=ts; updatePrices(); updateUI();
+      if(document.getElementById('chart-container').classList.contains('active')) drawChart();
+    }
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+updateUI(); drawChart(); requestAnimationFrame(gameLoop);
+window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>
